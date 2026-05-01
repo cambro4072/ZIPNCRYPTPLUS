@@ -2,66 +2,91 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ZIPNCRYPT_V8_STREAM</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZIPNCRYPT_V8_ULTRA</title>
     <style>
         body { background: #000; color: #0f0; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 2px solid #0f0; padding: 30px; background: #050505; width: 380px; box-shadow: 0 0 20px #040; text-align: center; }
-        h2 { letter-spacing: 5px; border-bottom: 2px solid #0f0; padding-bottom: 10px; margin-bottom: 20px; }
-        input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; margin-bottom: 15px; outline: none; }
-        button { width: 100%; padding: 15px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: #0f0; color: #000; text-transform: uppercase; }
-        #status { font-size: 11px; color: #0f0; margin-top: 15px; min-height: 30px; line-height: 1.4; }
+        .terminal { border: 2px solid #0f0; padding: 30px; background: #050505; width: 90%; max-width: 400px; box-shadow: 0 0 25px #040; text-align: center; }
+        h2 { letter-spacing: 5px; border-bottom: 2px solid #0f0; padding-bottom: 10px; margin-bottom: 25px; text-shadow: 0 0 8px #0f0; }
+        .box { margin-bottom: 20px; text-align: left; }
+        label { font-size: 10px; display: block; margin-bottom: 5px; opacity: 0.8; }
+        input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; outline: none; font-size: 14px; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        button { padding: 15px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; transition: 0.3s; text-transform: uppercase; font-family: 'Courier New'; }
+        .btn-lock { background: #0f0; color: #000; }
+        .btn-unlock { background: transparent; color: #0f0; }
+        button:hover { box-shadow: 0 0 15px #0f0; opacity: 0.8; }
+        #status { margin-top: 20px; font-size: 11px; color: #0f0; border-top: 1px dashed #040; padding-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="terminal">
     <h2>ZIPNCRYPT</h2>
-    <input type="file" id="fileIn">
-    <input type="password" id="passKey" placeholder="CIPHER_KEY">
-    <button onclick="startVault()">GENERATE_SECURE_LINK</button>
-    <div id="status">READY_TO_STREAM...</div>
+    
+    <div class="box">
+        <label>TARGET_DATA</label>
+        <input type="file" id="fileIn">
+    </div>
+
+    <div class="box">
+        <label>CIPHER_KEY</label>
+        <input type="password" id="passKey" placeholder="**********">
+    </div>
+
+    <div class="controls">
+        <button class="btn-lock" onclick="startVault('LOCK')">Secure</button>
+        <button class="btn-unlock" onclick="startVault('UNLOCK')">Unlock</button>
+    </div>
+    
+    <div id="status">SYSTEM_READY...</div>
 </div>
 
 <script>
-    // Register the "mini-server" (Service Worker)
+    // Register Service Worker for Large Streaming
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
+        navigator.serviceWorker.register('sw.js').then(() => {
+            console.log("Vault Streamer Active");
+        });
     }
 
-    async function startVault() {
+    async function startVault(mode) {
         const fileIn = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
         const status = document.getElementById('status');
 
         if (!fileIn.files[0] || !pass) {
-            status.innerText = "!! ERROR: DATA_REQUIRED";
+            status.innerText = "!! ERROR: INPUT_REQUIRED";
             return;
         }
 
         const file = fileIn.files[0];
-        status.innerText = "INITIALIZING_STREAMING_LINK...";
+        status.innerText = "GENERATING_STREAM_LINK...";
 
-        // We create a unique "Link" for this specific file
-        const fileName = "LOCKED_" + file.name;
-        const streamUrl = btoa(fileName); // Encoded link
+        const fileName = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
+        const streamUrl = btoa(fileName + Math.random()); 
 
-        // Send the file and password info to the Service Worker
-        const channel = new MessageChannel();
-        navigator.serviceWorker.controller.postMessage({
-            type: 'START_STREAM',
-            file: file,
-            pass: pass,
-            fileName: fileName
-        }, [channel.port2]);
+        // Send file data and mode to Service Worker
+        if (navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+                type: 'START_STREAM',
+                file: file,
+                pass: pass,
+                mode: mode
+            });
 
-        // Open the "Link" to trigger the download
-        // The Service Worker will intercept this and start the stream
-        const downloadLink = document.createElement('a');
-        downloadLink.href = `./download-stream/${streamUrl}`;
-        downloadLink.download = fileName;
-        downloadLink.click();
+            // Trigger the streaming link
+            const a = document.createElement('a');
+            a.href = `./download-stream/${streamUrl}`;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
 
-        status.innerText = "LINK_ACTIVE: CHECK_DOWNLOADS_FOLDER";
+            status.innerText = "STREAM_ACTIVE: CHECK_SAFARI_DOWNLOADS";
+        } else {
+            status.innerText = "!! ERROR: REFRESH_PAGE_TO_ACTIVATE_VAULT";
+        }
     }
 </script>
 </body>
