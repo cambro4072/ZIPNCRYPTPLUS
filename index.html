@@ -2,45 +2,36 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZIPNCRYPT_V7_MOBILE</title>
+    <title>ZIPNCRYPT_V8_STREAM</title>
     <style>
         body { background: #000; color: #0f0; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 2px solid #0f0; padding: 25px; background: #050505; width: 350px; box-shadow: 0 0 20px #040; text-align: center; }
-        h2 { letter-spacing: 4px; border-bottom: 1px solid #0f0; padding-bottom: 10px; margin-bottom: 20px; }
+        .terminal { border: 2px solid #0f0; padding: 30px; background: #050505; width: 380px; box-shadow: 0 0 20px #040; text-align: center; }
+        h2 { letter-spacing: 5px; border-bottom: 2px solid #0f0; padding-bottom: 10px; margin-bottom: 20px; }
         input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; margin-bottom: 15px; outline: none; }
-        .progress-container { width: 100%; border: 1px solid #0f0; height: 20px; margin-bottom: 15px; display: none; }
-        #progress-bar { background: #0f0; width: 0%; height: 100%; }
-        button { width: 100%; padding: 15px; margin-bottom: 10px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: transparent; color: #0f0; text-transform: uppercase; }
-        button:hover { background: #0f0; color: #000; }
-        #status { font-size: 10px; color: #0f0; margin-top: 10px; }
+        button { width: 100%; padding: 15px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: #0f0; color: #000; text-transform: uppercase; }
+        #status { font-size: 11px; color: #0f0; margin-top: 15px; min-height: 30px; line-height: 1.4; }
     </style>
 </head>
 <body>
 
 <div class="terminal">
     <h2>ZIPNCRYPT</h2>
-    
     <input type="file" id="fileIn">
     <input type="password" id="passKey" placeholder="CIPHER_KEY">
-
-    <div class="progress-container" id="progCont">
-        <div id="progress-bar"></div>
-    </div>
-
-    <button onclick="processMobile('LOCK')">ENCRYPT_DATA</button>
-    <button onclick="processMobile('UNLOCK')" style="font-size: 10px; opacity: 0.7;">DECRYPT_DATA</button>
-    
-    <div id="status">TERMINAL_READY...</div>
+    <button onclick="startVault()">GENERATE_SECURE_LINK</button>
+    <div id="status">READY_TO_STREAM...</div>
 </div>
 
 <script>
-    async function processMobile(mode) {
+    // Register the "mini-server" (Service Worker)
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+
+    async function startVault() {
         const fileIn = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
         const status = document.getElementById('status');
-        const bar = document.getElementById('progress-bar');
-        const cont = document.getElementById('progCont');
 
         if (!fileIn.files[0] || !pass) {
             status.innerText = "!! ERROR: DATA_REQUIRED";
@@ -48,60 +39,30 @@
         }
 
         const file = fileIn.files[0];
-        const key = new TextEncoder().encode(pass);
-        cont.style.display = 'block';
-        status.innerText = "STREAMING_DATA...";
+        status.innerText = "INITIALIZING_STREAMING_LINK...";
 
-        try {
-            const chunkSize = 1024 * 1024 * 2; // 2MB Chunks to prevent iPad crash
-            let offset = 0;
-            let resultParts = [];
+        // We create a unique "Link" for this specific file
+        const fileName = "LOCKED_" + file.name;
+        const streamUrl = btoa(fileName); // Encoded link
 
-            while (offset < file.size) {
-                const chunk = file.slice(offset, offset + chunkSize);
-                const buffer = await chunk.arrayBuffer();
-                const data = new Uint8Array(buffer);
+        // Send the file and password info to the Service Worker
+        const channel = new MessageChannel();
+        navigator.serviceWorker.controller.postMessage({
+            type: 'START_STREAM',
+            file: file,
+            pass: pass,
+            fileName: fileName
+        }, [channel.port2]);
 
-                for (let i = 0; i < data.length; i++) {
-                    data[i] ^= key[(offset + i) % key.length];
-                }
+        // Open the "Link" to trigger the download
+        // The Service Worker will intercept this and start the stream
+        const downloadLink = document.createElement('a');
+        downloadLink.href = `./download-stream/${streamUrl}`;
+        downloadLink.download = fileName;
+        downloadLink.click();
 
-                resultParts.push(data);
-                offset += chunkSize;
-
-                // Update Progress Bar
-                const percent = Math.round((offset / file.size) * 100);
-                bar.style.width = Math.min(percent, 100) + "%";
-                
-                // This "sleep" prevents the iPad UI from freezing
-                if (offset % (chunkSize * 5) === 0) {
-                    await new Promise(r => setTimeout(r, 1));
-                }
-            }
-
-            status.innerText = "FINALIZING_BLOB...";
-            const finalBlob = new Blob(resultParts, { type: "application/octet-stream" });
-            const url = URL.createObjectURL(finalBlob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
-            document.body.appendChild(a);
-            a.click();
-            
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-                document.body.removeChild(a);
-                status.innerText = "SUCCESS: DOWNLOAD_READY";
-                cont.style.display = 'none';
-            }, 1000);
-
-        } catch (err) {
-            console.error(err);
-            status.innerText = "CRITICAL_MEMORY_FAILURE";
-        }
+        status.innerText = "LINK_ACTIVE: CHECK_DOWNLOADS_FOLDER";
     }
 </script>
-
 </body>
 </html>
