@@ -1,11 +1,12 @@
-// The "Mini-Server" Logic
 let fileData = null;
 let password = null;
+let currentMode = null;
 
 self.addEventListener('message', (event) => {
     if (event.data.type === 'START_STREAM') {
         fileData = event.data.file;
         password = event.data.pass;
+        currentMode = event.data.mode;
     }
 });
 
@@ -23,23 +24,25 @@ self.addEventListener('fetch', (event) => {
                         controller.close();
                         break;
                     }
-                    
-                    // Scramble the chunk before sending it to the "Link"
+
                     const chunk = new Uint8Array(value);
+                    
+                    // Only scramble/unscramble if there is a password
+                    // XOR logic works for both LOCK and UNLOCK automatically
                     for (let i = 0; i < chunk.length; i++) {
                         chunk[i] ^= key[(offset + i) % key.length];
                     }
+                    
                     offset += chunk.length;
                     controller.enqueue(chunk);
                 }
             }
         });
 
-        // Tell the browser: "Treat this link as a file download"
         event.respondWith(new Response(stream, {
             headers: {
                 'Content-Type': 'application/octet-stream',
-                'Content-Disposition': `attachment; filename="encrypted_data"`,
+                'Content-Disposition': `attachment; filename="ZIPNCRYPT_DATA"`,
                 'Content-Length': fileData.size
             }
         }));
