@@ -2,20 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ZIPNCRYPT_TERMINAL</title>
+    <title>ZIPNCRYPT_MOBILE</title>
     <style>
-        body { background: #000; color: #00ff41; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 2px solid #00ff41; padding: 30px; background: #050505; box-shadow: 0 0 30px #004400; width: 450px; }
-        h2 { text-align: center; border-bottom: 2px solid #00ff41; padding-bottom: 10px; font-size: 1.5rem; letter-spacing: 4px; text-shadow: 0 0 8px #0f0; }
-        .field { margin: 20px 0; }
-        label { display: block; font-size: 10px; margin-bottom: 5px; opacity: 0.7; }
-        input { background: #000; border: 1px solid #00ff41; color: #00ff41; width: 100%; padding: 12px; box-sizing: border-box; outline: none; font-size: 14px; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-        button { padding: 15px; font-family: 'Courier New'; font-weight: bold; cursor: pointer; border: 1px solid #00ff41; transition: 0.2s; background: transparent; color: #00ff41; }
-        button:hover { background: #00ff41; color: #000; box-shadow: 0 0 20px #00ff41; }
-        #status-log { margin-top: 25px; font-size: 11px; padding: 10px; border: 1px solid #004400; background: #080808; min-height: 40px; line-height: 1.4; }
-        .glitch { animation: blink 1s infinite; color: #fff; }
-        @keyframes blink { 50% { opacity: 0; } }
+        body { background: #000; color: #0f0; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .terminal { border: 1px solid #0f0; padding: 25px; background: #050505; width: 90%; max-width: 400px; box-shadow: 0 0 20px #040; }
+        h2 { text-align: center; letter-spacing: 3px; border-bottom: 1px solid #0f0; padding-bottom: 10px; }
+        .input-group { margin: 20px 0; }
+        label { display: block; font-size: 12px; margin-bottom: 5px; }
+        input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; outline: none; }
+        button { width: 100%; padding: 15px; margin-top: 10px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: transparent; color: #0f0; text-transform: uppercase; }
+        button:hover { background: #0f0; color: #000; }
+        #status { margin-top: 20px; font-size: 12px; text-align: center; color: #0f0; min-height: 20px; }
     </style>
 </head>
 <body>
@@ -23,82 +20,75 @@
 <div class="terminal">
     <h2>ZIPNCRYPT</h2>
     
-    <div class="field">
-        <label>FILE_TO_PROCESS</label>
+    <div class="input-group">
+        <label>TARGET_FILE</label>
         <input type="file" id="fileIn">
     </div>
 
-    <div class="field">
-        <label>PASSCODE_KEY</label>
+    <div class="input-group">
+        <label>ACCESS_KEY</label>
         <input type="password" id="passKey" placeholder="********">
     </div>
 
-    <div class="controls">
-        <button onclick="executeVault('LOCK')">ENCRYPT</button>
-        <button onclick="executeVault('UNLOCK')">DECRYPT</button>
-    </div>
+    <button onclick="process('LOCK')">ENCRYPT_DATA</button>
+    <button onclick="process('UNLOCK')" style="opacity: 0.7; font-size: 10px;">DECRYPT_DATA</button>
     
-    <div id="status-log">SYSTEM_READY...</div>
+    <div id="status">IDLE_</div>
 </div>
 
 <script>
-    async function executeVault(mode) {
+    async function process(mode) {
         const fileInput = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
-        const log = document.getElementById('status-log');
+        const log = document.getElementById('status');
 
         if (!fileInput.files[0] || !pass) {
-            log.innerHTML = "<span style='color:red'>!! ERROR: DATA_INPUT_REQUIRED</span>";
+            log.innerText = "ERROR: DATA_MISSING";
             return;
         }
 
         const file = fileInput.files[0];
-        const newName = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
+        log.innerText = "PROCESSING_LARGE_FILE...";
 
-        try {
-            // Check for API support
-            if (!window.showSaveFilePicker) {
-                throw new Error("BROWSER_UNSUPPORTED: USE_CHROME_OR_EDGE");
-            }
+        // Use FileReader for better iPad compatibility
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const key = new TextEncoder().encode(pass);
 
-            const handle = await window.showSaveFilePicker({ suggestedName: newName });
-            const writable = await handle.createWritable();
-            
-            log.innerHTML = "STATUS: <span class='glitch'>STREAMING_BITS...</span>";
-
-            const key = new TextEncoder().encode(pass);
-            let offset = 0;
-            const reader = file.stream().getReader();
-
-            // Processing in small chunks (64KB) to avoid Memory Pressure
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = new Uint8Array(value);
-                for (let i = 0; i < chunk.length; i++) {
-                    chunk[i] ^= key[(offset + i) % key.length];
+                // XOR transformation
+                for (let i = 0; i < data.length; i++) {
+                    data[i] ^= key[i % key.length];
                 }
-                offset += chunk.length;
 
-                // Write and force flush to disk to clear RAM
-                await writable.write(chunk);
+                const blob = new Blob([data], { type: "application/octet-stream" });
+                const url = URL.createObjectURL(blob);
                 
-                const progress = Math.round((offset / file.size) * 100);
-                log.innerText = `>> CRYPTING: ${progress}% COMPLETE`;
-            }
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
+                
+                // On iPad, we need to add the link to the document for it to work
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    log.innerText = "SUCCESS: DATA_SAVED";
+                }, 500);
 
-            await writable.close();
-            log.innerHTML = "STATUS: <span style='color:#00ff41'>SUCCESS_FILE_SAVED</span>";
-
-        } catch (err) {
-            console.error(err);
-            if (err.name === 'AbortError') {
-                log.innerText = ">> USER_ABORTED";
-            } else {
-                log.innerHTML = `<span style='color:red'>!! FAIL: ${err.message}</span>`;
+            } catch (err) {
+                log.innerText = "SYSTEM_MEMORY_OVERLOAD";
             }
-        }
+        };
+
+        reader.onerror = () => { log.innerText = "READ_ERROR"; };
+        
+        // This starts the reading process
+        reader.readAsArrayBuffer(file);
     }
 </script>
 
