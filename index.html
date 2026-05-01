@@ -3,63 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZIPNCRYPT_V10</title>
+    <title>ZIPNCRYPT_V11</title>
     <style>
         body { background: #000; color: #0f0; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .terminal { border: 2px solid #0f0; padding: 30px; background: #050505; width: 90%; max-width: 400px; box-shadow: 0 0 25px #040; text-align: center; }
         h2 { letter-spacing: 5px; border-bottom: 2px solid #0f0; padding-bottom: 10px; margin-bottom: 25px; }
         input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; margin-bottom: 15px; outline: none; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        button { padding: 15px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: #0f0; color: #000; text-transform: uppercase; }
+        button { width: 100%; padding: 15px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: #0f0; color: #000; text-transform: uppercase; margin-bottom: 10px; }
         .btn-alt { background: transparent; color: #0f0; }
-        #status { margin-top: 20px; font-size: 11px; color: #0f0; opacity: 0.7; }
+        #status { margin-top: 20px; font-size: 11px; color: #0f0; min-height: 20px; }
+        .progress-bar { width: 0%; height: 4px; background: #0f0; margin-top: 10px; transition: width 0.2s; }
     </style>
 </head>
 <body>
+
 <div class="terminal">
     <h2>ZIPNCRYPT</h2>
     <input type="file" id="fileIn">
     <input type="password" id="passKey" placeholder="CIPHER_KEY">
-    <div class="controls">
-        <button onclick="startVault('LOCK')">SECURE</button>
-        <button class="btn-alt" onclick="startVault('UNLOCK')">UNLOCK</button>
-    </div>
-    <div id="status">SYSTEM_STABLE_V10</div>
+    <button onclick="process('LOCK')">SECURE_DATA</button>
+    <button class="btn-alt" onclick="process('UNLOCK')">UNLOCK_DATA</button>
+    <div id="progress" class="progress-bar"></div>
+    <div id="status">V11_STABLE_READY</div>
 </div>
 
 <script>
-    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js'); }
-
-    async function startVault(mode) {
+    async function process(mode) {
         const fileIn = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
         const status = document.getElementById('status');
+        const prog = document.getElementById('progress');
 
-        if (!fileIn.files[0] || !pass) { status.innerText = "!! REQUIRED: FILE + KEY"; return; }
+        if (!fileIn.files[0] || !pass) {
+            status.innerText = "!! DATA_REQUIRED";
+            return;
+        }
 
         const file = fileIn.files[0];
-        // Clean up the filename so we don't get "LOCKED_OPEN_LOCKED_..."
-        let fileName = file.name.replace("LOCKED_", "").replace("OPEN_", "");
-        fileName = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + fileName;
+        const key = new TextEncoder().encode(pass);
+        const fileName = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name.replace("LOCKED_", "").replace("OPEN_", "");
+        
+        status.innerText = "STREAMING_DATA...";
+        
+        const chunks = [];
+        const reader = file.stream().getReader();
+        let processedSize = 0;
 
-        if (navigator.serviceWorker.controller) {
-            navigator.serviceWorker.controller.postMessage({
-                type: 'START_STREAM',
-                file: file,
-                pass: pass
-            });
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // Process the chunk
+                for (let i = 0; i < value.length; i++) {
+                    value[i] ^= key[(processedSize + i) % key.length];
+                }
+                
+                chunks.push(value);
+                processedSize += value.length;
+                
+                // Update progress UI
+                const percent = Math.round((processedSize / file.size) * 100);
+                prog.style.width = percent + "%";
+                if (percent % 10 === 0) status.innerText = `PROCESSING: ${percent}%`;
+            }
+
+            status.innerText = "FINALIZING_VAULT...";
+            const blob = new Blob(chunks, { type: "application/octet-stream" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            a.click();
 
             setTimeout(() => {
-                const a = document.createElement('a');
-                a.href = `./download-stream/${Date.now()}`;
-                a.download = fileName;
-                a.click();
-                status.innerText = "TRANSMISSION_COMPLETE";
-            }, 100); 
-        } else {
-            location.reload();
+                URL.revokeObjectURL(url);
+                status.innerText = "SUCCESS_DOWNLOAD_READY";
+                prog.style.width = "0%";
+            }, 2000);
+
+        } catch (err) {
+            status.innerText = "!! CRITICAL_MEMORY_ERROR";
+            console.error(err);
         }
     }
 </script>
+
 </body>
 </html>
