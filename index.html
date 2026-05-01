@@ -2,156 +2,118 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Secure File Manager</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <title>TERMINAL_VAULT_v1.0</title>
     <style>
-        :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --text: #1e293b;
-        }
-
         body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
+            background-color: #000;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
             display: flex;
-            align-items: center;
             justify-content: center;
-            min-height: 100vh;
+            align-items: center;
+            height: 100vh;
             margin: 0;
+            text-transform: uppercase;
         }
-
-        .container {
-            background: var(--card);
-            padding: 2.5rem;
-            border-radius: 16px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
+        .vault-box {
+            border: 2px solid #0f0;
+            padding: 30px;
+            box-shadow: 0 0 15px #0f0;
+            background: #050505;
+            width: 400px;
         }
-
-        h1 { margin-bottom: 0.5rem; font-size: 1.5rem; }
-        p { color: #64748b; margin-bottom: 2rem; font-size: 0.9rem; }
-
-        .form-group { text-align: left; margin-bottom: 1.5rem; }
-        label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.85rem; }
-
+        h2 { border-bottom: 1px solid #0f0; padding-bottom: 10px; text-align: center; }
+        .input-group { margin: 20px 0; }
         input {
+            background: #000;
+            border: 1px solid #0f0;
+            color: #0f0;
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
+            padding: 10px;
             box-sizing: border-box;
-            transition: border-color 0.2s;
+            margin-top: 5px;
         }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary);
-            ring: 2px solid var(--primary);
-        }
-
         button {
-            width: 100%;
-            background-color: var(--primary);
-            color: white;
-            padding: 0.75rem;
+            background: #0f0;
+            color: #000;
             border: none;
-            border-radius: 8px;
-            font-weight: 600;
+            width: 100%;
+            padding: 15px;
+            font-weight: bold;
             cursor: pointer;
-            transition: background 0.2s;
+            margin-top: 10px;
         }
-
-        button:hover { background-color: var(--primary-hover); }
-
-        #status {
-            margin-top: 1rem;
-            font-size: 0.85rem;
-            min-height: 1.2rem;
-        }
+        button:hover { background: #00ff41; box-shadow: 0 0 10px #0f0; }
+        #status { margin-top: 15px; font-size: 0.8rem; color: #0f0; text-align: center; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h1>File Encrypter</h1>
-    <p>Select a file to protect with a passcode.</p>
-
-    <div class="form-group">
-        <label for="fileInput">Choose File</label>
+<div class="vault-box">
+    <h2>Access Terminal</h2>
+    
+    <div class="input-group">
+        <label>Select Target File</label>
         <input type="file" id="fileInput">
     </div>
 
-    <div class="form-group">
-        <label for="passcode">Set Passcode</label>
-        <input type="password" id="passcode" placeholder="••••••••">
+    <div class="input-group">
+        <label>Encryption Key</label>
+        <input type="password" id="passcode" placeholder="ENTER_CODE_">
     </div>
 
-    <button id="processBtn">Protect & Download</button>
-    <div id="status"></div>
+    <button id="lockBtn">SECURE FILE</button>
+    <button id="unlockBtn" style="background: transparent; color: #0f0; border: 1px solid #0f0;">DECRYPT FILE</button>
+    
+    <div id="status">READY_</div>
 </div>
 
 <script>
-    document.getElementById('processBtn').addEventListener('click', async () => {
+    const status = document.getElementById('status');
+
+    async function processFile(mode) {
         const fileInput = document.getElementById('fileInput');
         const passcode = document.getElementById('passcode').value;
-        const status = document.getElementById('status');
 
-        // Initial Checks
-        if (!fileInput.files[0]) {
-            status.style.color = "red";
-            status.innerText = "Please select a file.";
-            return;
-        }
-        if (!passcode) {
-            status.style.color = "red";
-            status.innerText = "Please enter a passcode.";
+        if (!fileInput.files[0] || !passcode) {
+            status.innerText = "ERROR: CREDENTIALS_MISSING";
             return;
         }
 
-        status.style.color = "var(--primary)";
-        status.innerText = "Processing file...";
+        status.innerText = "EXECUTING...";
 
         try {
             const file = fileInput.files[0];
             const arrayBuffer = await file.arrayBuffer();
-
-            // --- FUNCTIONAL LOGIC ---
-            // We use the Blob constructor to prepare the data for the browser.
-            // This is the step that ensures the file is "handed back" to you.
-            const blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
             
-            // Generate a temporary download link
+            /* LOGIC NOTE: To make this "unlockable," we use the passcode 
+               to transform the data. If you use the same passcode twice, 
+               it flips the bits back to their original state.
+            */
+            const data = new Uint8Array(arrayBuffer);
+            const key = new TextEncoder().encode(passcode);
+            
+            for (let i = 0; i < data.length; i++) {
+                data[i] = data[i] ^ key[i % key.length]; // XOR transformation
+            }
+
+            const blob = new Blob([data], { type: "application/octet-stream" });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.style.display = 'none';
+            
             a.href = url;
+            a.download = mode === 'lock' ? `LOCKED_${file.name}` : `OPEN_${file.name.replace('LOCKED_', '')}`;
+            a.click();
             
-            // Rename the file for the download
-            a.download = `protected_${file.name}`;
-            
-            document.body.appendChild(a);
-            a.click(); // Trigger the Save As dialog
-            
-            // Clean up memory
             window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            status.style.color = "green";
-            status.innerText = "Done! Your file is downloading.";
-
-        } catch (err) {
-            console.error(err);
-            status.style.color = "red";
-            status.innerText = "An error occurred during processing.";
+            status.innerText = "COMMAND_SUCCESSFUL";
+        } catch (e) {
+            status.innerText = "SYSTEM_FAILURE";
         }
-    });
+    }
+
+    document.getElementById('lockBtn').addEventListener('click', () => processFile('lock'));
+    document.getElementById('unlockBtn').addEventListener('click', () => processFile('unlock'));
 </script>
 
 </body>
