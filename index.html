@@ -2,90 +2,103 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TERMINAL_VAULT_v3</title>
+    <title>TERMINAL_VAULT_v4_ULTRA</title>
     <style>
         body { background: #000; color: #00ff41; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 1px solid #00ff41; padding: 30px; background: #050505; box-shadow: 0 0 20px #004400; width: 380px; }
-        h2 { text-align: center; border-bottom: 1px solid #00ff41; padding-bottom: 10px; font-size: 1.2rem; }
+        .terminal { border: 1px solid #00ff41; padding: 30px; background: #050505; box-shadow: 0 0 25px #004400; width: 420px; }
+        h2 { text-align: center; border-bottom: 2px solid #00ff41; padding-bottom: 10px; letter-spacing: 2px; }
         .field { margin: 20px 0; }
-        label { display: block; font-size: 10px; margin-bottom: 5px; opacity: 0.8; }
-        input { background: #000; border: 1px solid #00ff41; color: #00ff41; width: 100%; padding: 10px; box-sizing: border-box; outline: none; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        button { padding: 12px; font-family: 'Courier New'; font-weight: bold; cursor: pointer; border: 1px solid #00ff41; transition: 0.3s; }
+        label { display: block; font-size: 11px; margin-bottom: 8px; font-weight: bold; }
+        input { background: #000; border: 1px solid #00ff41; color: #00ff41; width: 100%; padding: 12px; box-sizing: border-box; outline: none; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 25px; }
+        button { padding: 15px; font-family: 'Courier New'; font-weight: bold; cursor: pointer; border: 1px solid #00ff41; transition: 0.3s; text-transform: uppercase; }
         .btn-main { background: #00ff41; color: #000; }
         .btn-sub { background: transparent; color: #00ff41; }
-        button:hover { box-shadow: 0 0 10px #00ff41; }
-        #status-log { margin-top: 20px; font-size: 11px; border-top: 1px dashed #004400; padding-top: 10px; color: #00ff41; }
+        button:hover { background: #008822; color: #fff; box-shadow: 0 0 15px #00ff41; }
+        #status-log { margin-top: 25px; font-size: 12px; border: 1px dashed #004400; padding: 10px; background: #0a0a0a; min-height: 20px; }
+        .loader { color: #fff; font-weight: bold; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="terminal">
-    <h2>> CRYPT_OS_LOADED</h2>
+    <h2>[ LARGE_DATA_VAULT ]</h2>
     
     <div class="field">
-        <label>SELECT_TARGET_DATA</label>
+        <label>SOURCE_DATA (MAX 2GB_TESTED)</label>
         <input type="file" id="fileIn">
     </div>
 
     <div class="field">
-        <label>ACCESS_KEY_REQUIRED</label>
-        <input type="password" id="passKey" placeholder="********">
+        <label>ACCESS_KEY_CIPHER</label>
+        <input type="password" id="passKey" placeholder="**********">
     </div>
 
     <div class="controls">
-        <button class="btn-main" onclick="execute('LOCK')">LOCK</button>
-        <button class="btn-sub" onclick="execute('UNLOCK')">UNLOCK</button>
+        <button class="btn-main" onclick="processStream('LOCK')">Secure</button>
+        <button class="btn-sub" onclick="processStream('UNLOCK')">Unlock</button>
     </div>
     
-    <div id="status-log">SYSTEM_READY...</div>
+    <div id="status-log">SYSTEM_IDLE...</div>
 </div>
 
 <script>
-    async function execute(mode) {
+    async function processStream(mode) {
         const fileInput = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
         const log = document.getElementById('status-log');
 
         if (!fileInput.files[0] || !pass) {
-            log.innerText = "!! ERROR: INPUT_REQUIRED";
+            log.innerHTML = "<span style='color:red'>!! INPUT_REQUIRED</span>";
             return;
         }
 
-        log.innerText = ">> INITIALIZING_BIT_FLIP...";
+        const file = fileInput.files[0];
+        log.innerHTML = "STATUS: <span class='loader'>PROCESSING_STREAM...</span>";
 
         try {
-            const file = fileInput.files[0];
-            const reader = new FileReader();
+            const key = new TextEncoder().encode(pass);
+            let offset = 0;
 
-            reader.onload = function(e) {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const key = new TextEncoder().encode(pass);
-
-                    // XOR Engine
+            // Step 1: Create a Transformer to XOR the data in chunks
+            const transformer = new TransformStream({
+                transform(chunk, controller) {
+                    const data = new Uint8Array(chunk);
                     for (let i = 0; i < data.length; i++) {
-                        data[i] ^= key[i % key.length];
+                        data[i] ^= key[(offset + i) % key.length];
                     }
-
-                    const blob = new Blob([data], { type: "application/octet-stream" });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
-                    a.click();
-                    
-                    URL.revokeObjectURL(url);
-                    log.innerText = ">> SUCCESS: OPERATION_COMPLETE";
-                } catch (innerErr) {
-                    log.innerText = "!! ERROR: BUFFER_OVERFLOW";
+                    offset += data.length;
+                    controller.enqueue(data);
                 }
-            };
+            });
 
-            reader.readAsArrayBuffer(file);
+            // Step 2: Stream the file through the transformer
+            const stream = file.stream().pipeThrough(transformer);
+            
+            // Step 3: Create a Response from the stream and get it as a Blob
+            // This is the key for handling large files without crashing
+            const processedBlob = await new Response(stream).blob();
+
+            // Step 4: Trigger the download
+            const url = URL.createObjectURL(processedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
+            document.body.appendChild(a);
+            a.click();
+            
+            // Cleanup
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            }, 100);
+
+            log.innerHTML = "STATUS: <span style='color:#00ff41'>VAULT_OPERATION_SUCCESS</span>";
 
         } catch (err) {
-            log.innerText = "!! ERROR: CRITICAL_SYSTEM_FAILURE";
+            console.error(err);
+            log.innerHTML = "<span style='color:red'>!! STREAM_INTERRUPTED</span>";
         }
     }
 </script>
