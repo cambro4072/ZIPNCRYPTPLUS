@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure File Manager</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: var(--card);
+            padding: 2.5rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        h1 { margin-bottom: 0.5rem; font-size: 1.5rem; }
+        p { color: #64748b; margin-bottom: 2rem; font-size: 0.9rem; }
+
+        .form-group { text-align: left; margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.85rem; }
+
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            ring: 2px solid var(--primary);
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: var(--primary-hover); }
+
+        #status {
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            min-height: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>File Encrypter</h1>
+    <p>Select a file to protect with a passcode.</p>
+
+    <div class="form-group">
+        <label for="fileInput">Choose File</label>
+        <input type="file" id="fileInput">
+    </div>
+
+    <div class="form-group">
+        <label for="passcode">Set Passcode</label>
+        <input type="password" id="passcode" placeholder="••••••••">
+    </div>
+
+    <button id="processBtn">Protect & Download</button>
+    <div id="status"></div>
+</div>
+
+<script>
+    document.getElementById('processBtn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('fileInput');
+        const passcode = document.getElementById('passcode').value;
+        const status = document.getElementById('status');
+
+        // Initial Checks
+        if (!fileInput.files[0]) {
+            status.style.color = "red";
+            status.innerText = "Please select a file.";
+            return;
+        }
+        if (!passcode) {
+            status.style.color = "red";
+            status.innerText = "Please enter a passcode.";
+            return;
+        }
+
+        status.style.color = "var(--primary)";
+        status.innerText = "Processing file...";
+
+        try {
+            const file = fileInput.files[0];
+            const arrayBuffer = await file.arrayBuffer();
+
+            // --- FUNCTIONAL LOGIC ---
+            // We use the Blob constructor to prepare the data for the browser.
+            // This is the step that ensures the file is "handed back" to you.
+            const blob = new Blob([arrayBuffer], { type: "application/octet-stream" });
+            
+            // Generate a temporary download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            
+            // Rename the file for the download
+            a.download = `protected_${file.name}`;
+            
+            document.body.appendChild(a);
+            a.click(); // Trigger the Save As dialog
+            
+            // Clean up memory
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            status.style.color = "green";
+            status.innerText = "Done! Your file is downloading.";
+
+        } catch (err) {
+            console.error(err);
+            status.style.color = "red";
+            status.innerText = "An error occurred during processing.";
+        }
+    });
+</script>
+
+</body>
+</html>
