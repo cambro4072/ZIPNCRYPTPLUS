@@ -2,53 +2,53 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TERMINAL_VAULT_v5_DIRECT_IO</title>
+    <title>ZIPNCRYPT_TERMINAL</title>
     <style>
         body { background: #000; color: #00ff41; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 2px solid #00ff41; padding: 30px; background: #050505; box-shadow: 0 0 30px #002200; width: 450px; }
-        h2 { text-align: center; border-bottom: 2px solid #00ff41; padding-bottom: 10px; font-size: 1.1rem; text-shadow: 0 0 5px #0f0; }
+        .terminal { border: 2px solid #00ff41; padding: 30px; background: #050505; box-shadow: 0 0 30px #004400; width: 450px; }
+        h2 { text-align: center; border-bottom: 2px solid #00ff41; padding-bottom: 10px; font-size: 1.5rem; letter-spacing: 4px; text-shadow: 0 0 8px #0f0; }
         .field { margin: 20px 0; }
         label { display: block; font-size: 10px; margin-bottom: 5px; opacity: 0.7; }
         input { background: #000; border: 1px solid #00ff41; color: #00ff41; width: 100%; padding: 12px; box-sizing: border-box; outline: none; font-size: 14px; }
         .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
         button { padding: 15px; font-family: 'Courier New'; font-weight: bold; cursor: pointer; border: 1px solid #00ff41; transition: 0.2s; background: transparent; color: #00ff41; }
         button:hover { background: #00ff41; color: #000; box-shadow: 0 0 20px #00ff41; }
-        #status-log { margin-top: 25px; font-size: 11px; padding: 10px; border: 1px solid #004400; background: #080808; white-space: pre-wrap; }
-        .warning { color: #ff0; font-size: 9px; margin-top: 10px; text-align: center; }
+        #status-log { margin-top: 25px; font-size: 11px; padding: 10px; border: 1px solid #004400; background: #080808; min-height: 40px; line-height: 1.4; }
+        .glitch { animation: blink 1s infinite; color: #fff; }
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
 
 <div class="terminal">
-    <h2>[ HEAVY_DATA_PROCESSOR ]</h2>
+    <h2>ZIPNCRYPT</h2>
     
     <div class="field">
-        <label>TARGET_DATA_STREAM</label>
+        <label>FILE_TO_PROCESS</label>
         <input type="file" id="fileIn">
     </div>
 
     <div class="field">
-        <label>CIPHER_KEY</label>
+        <label>PASSCODE_KEY</label>
         <input type="password" id="passKey" placeholder="********">
     </div>
 
     <div class="controls">
-        <button onclick="processDirect('LOCK')">LOCK_FILE</button>
-        <button onclick="processDirect('UNLOCK')">UNLOCK_FILE</button>
+        <button onclick="executeVault('LOCK')">ENCRYPT</button>
+        <button onclick="executeVault('UNLOCK')">DECRYPT</button>
     </div>
     
-    <div id="status-log">SYSTEM_IDLE...</div>
-    <div class="warning">NOTICE: A SYSTEM DIALOG WILL APPEAR TO SAVE THE NEW FILE.</div>
+    <div id="status-log">SYSTEM_READY...</div>
 </div>
 
 <script>
-    async function processDirect(mode) {
+    async function executeVault(mode) {
         const fileInput = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
         const log = document.getElementById('status-log');
 
         if (!fileInput.files[0] || !pass) {
-            log.innerText = "!! ERROR: MISSING_INPUTS";
+            log.innerHTML = "<span style='color:red'>!! ERROR: DATA_INPUT_REQUIRED</span>";
             return;
         }
 
@@ -56,46 +56,47 @@
         const newName = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
 
         try {
-            // 1. Request permission to save a file directly to disk
-            // This is what prevents the browser from crashing/freezing
-            const handle = await window.showSaveFilePicker({
-                suggestedName: newName,
-            });
-            
+            // Check for API support
+            if (!window.showSaveFilePicker) {
+                throw new Error("BROWSER_UNSUPPORTED: USE_CHROME_OR_EDGE");
+            }
+
+            const handle = await window.showSaveFilePicker({ suggestedName: newName });
             const writable = await handle.createWritable();
-            log.innerText = ">> DIRECT_IO_CONNECTED\n>> PROCESSING_CHUNKS...";
+            
+            log.innerHTML = "STATUS: <span class='glitch'>STREAMING_BITS...</span>";
 
             const key = new TextEncoder().encode(pass);
             let offset = 0;
             const reader = file.stream().getReader();
 
+            // Processing in small chunks (64KB) to avoid Memory Pressure
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
 
-                const data = new Uint8Array(value);
-                // XOR transformation on the chunk
-                for (let i = 0; i < data.length; i++) {
-                    data[i] ^= key[(offset + i) % key.length];
+                const chunk = new Uint8Array(value);
+                for (let i = 0; i < chunk.length; i++) {
+                    chunk[i] ^= key[(offset + i) % key.length];
                 }
-                offset += data.length;
+                offset += chunk.length;
 
-                // Write the chunk IMMEDIATELY to the hard drive
-                await writable.write(data);
+                // Write and force flush to disk to clear RAM
+                await writable.write(chunk);
                 
                 const progress = Math.round((offset / file.size) * 100);
-                log.innerText = `>> PROGRESS: ${progress}%`;
+                log.innerText = `>> CRYPTING: ${progress}% COMPLETE`;
             }
 
             await writable.close();
-            log.innerText = ">> SUCCESS: FILE_WRITTEN_TO_DISK";
+            log.innerHTML = "STATUS: <span style='color:#00ff41'>SUCCESS_FILE_SAVED</span>";
 
         } catch (err) {
             console.error(err);
             if (err.name === 'AbortError') {
-                log.innerText = ">> USER_CANCELLED";
+                log.innerText = ">> USER_ABORTED";
             } else {
-                log.innerText = "!! CRITICAL_ERROR: SYSTEM_MEMORY_PRESSURE";
+                log.innerHTML = `<span style='color:red'>!! FAIL: ${err.message}</span>`;
             }
         }
     }
