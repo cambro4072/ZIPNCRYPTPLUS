@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ZIPNCRYPT_V11</title>
+    <title>ZIPNCRYPT_V12</title>
     <style>
         body { background: #000; color: #0f0; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 2px solid #0f0; padding: 30px; background: #050505; width: 90%; max-width: 400px; box-shadow: 0 0 25px #040; text-align: center; }
+        .terminal { border: 2px solid #0f0; padding: 30px; background: #050505; width: 90%; max-width: 400px; box-shadow: 0 0 20px #040; text-align: center; }
         h2 { letter-spacing: 5px; border-bottom: 2px solid #0f0; padding-bottom: 10px; margin-bottom: 25px; }
         input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; margin-bottom: 15px; outline: none; }
         button { width: 100%; padding: 15px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: #0f0; color: #000; text-transform: uppercase; margin-bottom: 10px; }
         .btn-alt { background: transparent; color: #0f0; }
-        #status { margin-top: 20px; font-size: 11px; color: #0f0; min-height: 20px; }
-        .progress-bar { width: 0%; height: 4px; background: #0f0; margin-top: 10px; transition: width 0.2s; }
+        #status { margin-top: 15px; font-size: 11px; color: #0f0; }
+        .progress-box { width: 100%; height: 10px; border: 1px solid #040; margin-top: 10px; overflow: hidden; }
+        #bar { width: 0%; height: 100%; background: #0f0; }
     </style>
 </head>
 <body>
@@ -21,10 +22,10 @@
     <h2>ZIPNCRYPT</h2>
     <input type="file" id="fileIn">
     <input type="password" id="passKey" placeholder="CIPHER_KEY">
-    <button onclick="process('LOCK')">SECURE_DATA</button>
-    <button class="btn-alt" onclick="process('UNLOCK')">UNLOCK_DATA</button>
-    <div id="progress" class="progress-bar"></div>
-    <div id="status">V11_STABLE_READY</div>
+    <button onclick="process('LOCK')">SECURE_FILE</button>
+    <button class="btn-alt" onclick="process('UNLOCK')">UNLOCK_FILE</button>
+    <div class="progress-box"><div id="bar"></div></div>
+    <div id="status">IDLE_V12</div>
 </div>
 
 <script>
@@ -32,10 +33,10 @@
         const fileIn = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
         const status = document.getElementById('status');
-        const prog = document.getElementById('progress');
+        const bar = document.getElementById('bar');
 
         if (!fileIn.files[0] || !pass) {
-            status.innerText = "!! DATA_REQUIRED";
+            status.innerText = "!! ERROR: MISSING_DATA";
             return;
         }
 
@@ -43,50 +44,49 @@
         const key = new TextEncoder().encode(pass);
         const fileName = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name.replace("LOCKED_", "").replace("OPEN_", "");
         
-        status.innerText = "STREAMING_DATA...";
+        status.innerText = "READING_BITS...";
         
-        const chunks = [];
-        const reader = file.stream().getReader();
-        let processedSize = 0;
+        // Use a FileReader to handle the 600MB file in a way iPad likes
+        const reader = new FileReader();
+        
+        reader.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                bar.style.width = percent + "%";
+            }
+        };
 
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                // Process the chunk
-                for (let i = 0; i < value.length; i++) {
-                    value[i] ^= key[(processedSize + i) % key.length];
-                }
-                
-                chunks.push(value);
-                processedSize += value.length;
-                
-                // Update progress UI
-                const percent = Math.round((processedSize / file.size) * 100);
-                prog.style.width = percent + "%";
-                if (percent % 10 === 0) status.innerText = `PROCESSING: ${percent}%`;
+        reader.onload = async (e) => {
+            status.innerText = "SCRAMBLING_DATA...";
+            const data = new Uint8Array(e.target.result);
+            
+            // The actual encryption math
+            for (let i = 0; i < data.length; i++) {
+                data[i] ^= key[i % key.length];
             }
 
-            status.innerText = "FINALIZING_VAULT...";
-            const blob = new Blob(chunks, { type: "application/octet-stream" });
+            status.innerText = "GENERATING_FILE...";
+            const blob = new Blob([data], { type: "application/octet-stream" });
             const url = URL.createObjectURL(blob);
             
             const a = document.createElement('a');
             a.href = url;
             a.download = fileName;
+            document.body.appendChild(a);
             a.click();
-
+            
             setTimeout(() => {
                 URL.revokeObjectURL(url);
-                status.innerText = "SUCCESS_DOWNLOAD_READY";
-                prog.style.width = "0%";
-            }, 2000);
+                document.body.removeChild(a);
+                status.innerText = "SUCCESS_READY_FOR_NEXT";
+                bar.style.width = "0%";
+            }, 1000);
+        };
 
-        } catch (err) {
-            status.innerText = "!! CRITICAL_MEMORY_ERROR";
-            console.error(err);
-        }
+        reader.onerror = () => { status.innerText = "SYSTEM_READ_ERROR"; };
+        
+        // This is the part that actually starts the work
+        reader.readAsArrayBuffer(file);
     }
 </script>
 
