@@ -2,17 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>ZIPNCRYPT_MOBILE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZIPNCRYPT_V7_MOBILE</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .terminal { border: 1px solid #0f0; padding: 25px; background: #050505; width: 90%; max-width: 400px; box-shadow: 0 0 20px #040; }
-        h2 { text-align: center; letter-spacing: 3px; border-bottom: 1px solid #0f0; padding-bottom: 10px; }
-        .input-group { margin: 20px 0; }
-        label { display: block; font-size: 12px; margin-bottom: 5px; }
-        input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; outline: none; }
-        button { width: 100%; padding: 15px; margin-top: 10px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: transparent; color: #0f0; text-transform: uppercase; }
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .terminal { border: 2px solid #0f0; padding: 25px; background: #050505; width: 350px; box-shadow: 0 0 20px #040; text-align: center; }
+        h2 { letter-spacing: 4px; border-bottom: 1px solid #0f0; padding-bottom: 10px; margin-bottom: 20px; }
+        input { background: #000; border: 1px solid #0f0; color: #0f0; width: 100%; padding: 12px; box-sizing: border-box; margin-bottom: 15px; outline: none; }
+        .progress-container { width: 100%; border: 1px solid #0f0; height: 20px; margin-bottom: 15px; display: none; }
+        #progress-bar { background: #0f0; width: 0%; height: 100%; }
+        button { width: 100%; padding: 15px; margin-bottom: 10px; font-weight: bold; cursor: pointer; border: 1px solid #0f0; background: transparent; color: #0f0; text-transform: uppercase; }
         button:hover { background: #0f0; color: #000; }
-        #status { margin-top: 20px; font-size: 12px; text-align: center; color: #0f0; min-height: 20px; }
+        #status { font-size: 10px; color: #0f0; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -20,75 +21,85 @@
 <div class="terminal">
     <h2>ZIPNCRYPT</h2>
     
-    <div class="input-group">
-        <label>TARGET_FILE</label>
-        <input type="file" id="fileIn">
+    <input type="file" id="fileIn">
+    <input type="password" id="passKey" placeholder="CIPHER_KEY">
+
+    <div class="progress-container" id="progCont">
+        <div id="progress-bar"></div>
     </div>
 
-    <div class="input-group">
-        <label>ACCESS_KEY</label>
-        <input type="password" id="passKey" placeholder="********">
-    </div>
-
-    <button onclick="process('LOCK')">ENCRYPT_DATA</button>
-    <button onclick="process('UNLOCK')" style="opacity: 0.7; font-size: 10px;">DECRYPT_DATA</button>
+    <button onclick="processMobile('LOCK')">ENCRYPT_DATA</button>
+    <button onclick="processMobile('UNLOCK')" style="font-size: 10px; opacity: 0.7;">DECRYPT_DATA</button>
     
-    <div id="status">IDLE_</div>
+    <div id="status">TERMINAL_READY...</div>
 </div>
 
 <script>
-    async function process(mode) {
-        const fileInput = document.getElementById('fileIn');
+    async function processMobile(mode) {
+        const fileIn = document.getElementById('fileIn');
         const pass = document.getElementById('passKey').value;
-        const log = document.getElementById('status');
+        const status = document.getElementById('status');
+        const bar = document.getElementById('progress-bar');
+        const cont = document.getElementById('progCont');
 
-        if (!fileInput.files[0] || !pass) {
-            log.innerText = "ERROR: DATA_MISSING";
+        if (!fileIn.files[0] || !pass) {
+            status.innerText = "!! ERROR: DATA_REQUIRED";
             return;
         }
 
-        const file = fileInput.files[0];
-        log.innerText = "PROCESSING_LARGE_FILE...";
+        const file = fileIn.files[0];
+        const key = new TextEncoder().encode(pass);
+        cont.style.display = 'block';
+        status.innerText = "STREAMING_DATA...";
 
-        // Use FileReader for better iPad compatibility
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const key = new TextEncoder().encode(pass);
+        try {
+            const chunkSize = 1024 * 1024 * 2; // 2MB Chunks to prevent iPad crash
+            let offset = 0;
+            let resultParts = [];
 
-                // XOR transformation
+            while (offset < file.size) {
+                const chunk = file.slice(offset, offset + chunkSize);
+                const buffer = await chunk.arrayBuffer();
+                const data = new Uint8Array(buffer);
+
                 for (let i = 0; i < data.length; i++) {
-                    data[i] ^= key[i % key.length];
+                    data[i] ^= key[(offset + i) % key.length];
                 }
 
-                const blob = new Blob([data], { type: "application/octet-stream" });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
-                
-                // On iPad, we need to add the link to the document for it to work
-                document.body.appendChild(a);
-                a.click();
-                
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    log.innerText = "SUCCESS: DATA_SAVED";
-                }, 500);
+                resultParts.push(data);
+                offset += chunkSize;
 
-            } catch (err) {
-                log.innerText = "SYSTEM_MEMORY_OVERLOAD";
+                // Update Progress Bar
+                const percent = Math.round((offset / file.size) * 100);
+                bar.style.width = Math.min(percent, 100) + "%";
+                
+                // This "sleep" prevents the iPad UI from freezing
+                if (offset % (chunkSize * 5) === 0) {
+                    await new Promise(r => setTimeout(r, 1));
+                }
             }
-        };
 
-        reader.onerror = () => { log.innerText = "READ_ERROR"; };
-        
-        // This starts the reading process
-        reader.readAsArrayBuffer(file);
+            status.innerText = "FINALIZING_BLOB...";
+            const finalBlob = new Blob(resultParts, { type: "application/octet-stream" });
+            const url = URL.createObjectURL(finalBlob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = (mode === 'LOCK' ? "LOCKED_" : "OPEN_") + file.name;
+            document.body.appendChild(a);
+            a.click();
+            
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                status.innerText = "SUCCESS: DOWNLOAD_READY";
+                cont.style.display = 'none';
+            }, 1000);
+
+        } catch (err) {
+            console.error(err);
+            status.innerText = "CRITICAL_MEMORY_FAILURE";
+        }
     }
 </script>
 
