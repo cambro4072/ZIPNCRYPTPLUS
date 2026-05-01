@@ -20,6 +20,8 @@ self.addEventListener('fetch', (event) => {
                     const { done, value } = await reader.read();
                     if (done) {
                         controller.close();
+                        // Clear memory after stream finishes
+                        fileData = null; 
                         break;
                     }
                     const chunk = new Uint8Array(value);
@@ -35,9 +37,7 @@ self.addEventListener('fetch', (event) => {
         event.respondWith(new Response(stream, {
             headers: {
                 'Content-Type': 'application/octet-stream',
-                'Content-Disposition': 'attachment; filename="ZIPNCRYPT_OUT"',
-                // We keep Content-Length out here to prevent iPad from 
-                // trying to pre-calculate the whole file in RAM
+                'Content-Disposition': 'attachment; filename="DATA_FILE"'
             }
         }));
     }
